@@ -1,0 +1,5 @@
+/* src/styles/app.css */
+@import "tailwindcss";
+
+/* daisyUI plugin */
+@plugin "daisyui";

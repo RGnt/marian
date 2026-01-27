@@ -1,181 +1,335 @@
 import * as React from "react";
-import type { ChatMessage } from "../../lib/api/types";
+import type { ChatMessage } from "@/lib/api/types";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
-import { useBrowserSpeechRecognition } from "../../lib/speech/useBrowserSpeechRecognition";
-import { streamChatCompletion, toOpenAIMessages } from "../../lib/api/client";
 
-const LS_KEY = "local_chat_history_v1";
+import { useBrowserSpeechRecognition } from "@/lib/speech/useBrowserSpeechRecognition";
+import { streamChatCompletion } from "@/lib/api/openaiStream";
+import { fetchSpeechWav } from "@/lib/api/tts";
+
+import { useAudioQueue } from "@/lib/audio/useAudioQueue";
+import { blobToObjectUrl } from "@/lib/audio/bytes";
+import { StreamingTtsSegmenter } from "@/lib/audio/StreamingTtsSegmenter";
+
+import { loadChatHistory, saveChatHistory, clearChatHistory } from "@/lib/storage/chatHistory.client";
 
 function uid() {
-    return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
-function loadHistory(): ChatMessage[] {
-    if (typeof window === "undefined") return [];
-    try {
-        const raw = window.localStorage.getItem(LS_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
-    } catch {
-        return [];
-    }
+function toOpenAIMessages(history: ChatMessage[]) {
+  return history.map((m) => ({ role: m.role, content: m.content }));
 }
 
-function saveHistory(msgs: ChatMessage[]) {
-    try {
-        window.localStorage.setItem(LS_KEY, JSON.stringify(msgs));
-    } catch { }
-}
+type TtsController = {
+  messageId: string;
+  enabled: boolean;
+  segmenter: StreamingTtsSegmenter;
+  abort: AbortController;
+  runId: string;
+  chain: Promise<void>;
+  fastStartTimer: number | null;
+};
 
 export function ChatApp() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
-    const modelName = import.meta.env.VITE_MODEL_NAME ?? "local-model";
+  const modelName = import.meta.env.VITE_MODEL_NAME ?? "local-model";
 
-    const [messages, setMessages] = React.useState<ChatMessage[]>(() => loadHistory());
-    const [text, setText] = React.useState("");
-    const [busy, setBusy] = React.useState(false);
+  // deterministic initial render (SSR-safe)
+  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [text, setText] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
 
-    const abortRef = React.useRef<AbortController | null>(null);
+  const [streamingAssistantId, setStreamingAssistantId] = React.useState<string | null>(null);
 
-    const sr = useBrowserSpeechRecognition({
-        lang: "en-US",
-        continuous: false,
-        interimResults: true,
-    });
+  const [ttsEnabledFor, setTtsEnabledFor] = React.useState<string | null>(null);
+  const [ttsBusyFor, setTtsBusyFor] = React.useState<string | null>(null);
 
-    React.useEffect(() => {
-        saveHistory(messages);
-    }, [messages]);
+  const abortChatRef = React.useRef<AbortController | null>(null);
+  const audioQ = useAudioQueue();
+  const ttsRef = React.useRef<TtsController | null>(null);
+  const didLoadHistoryRef = React.useRef(false);
 
-    // When browser STT finalizes, fill input.
-    React.useEffect(() => {
-        if (!sr.finalText) return;
-        setText(sr.finalText);
-    }, [sr.finalText]);
+  const sr = useBrowserSpeechRecognition({
+    lang: "en-US",
+    continuous: false,
+    interimResults: true,
+  });
 
-    const appendMessage = React.useCallback((m: ChatMessage) => {
-        setMessages((prev) => [...prev, m]);
-    }, []);
+  // load history after hydration
+  React.useEffect(() => {
+    const hist = loadChatHistory();
+    setMessages(hist);
+    didLoadHistoryRef.current = true;
+  }, []);
 
-    const updateAssistantMessage = React.useCallback((assistantId: string, delta: string) => {
-        setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m))
-        );
-    }, []);
+  React.useEffect(() => {
+    if (!didLoadHistoryRef.current) return;
+    saveChatHistory(messages);
+  }, [messages]);
 
-    const runChat = React.useCallback(
-        async (userText: string) => {
-            const trimmed = userText.trim();
-            if (!trimmed) return;
+  React.useEffect(() => {
+    if (sr.finalText) setText(sr.finalText);
+  }, [sr.finalText]);
 
-            // cancel any in-flight request
-            abortRef.current?.abort();
-            const ac = new AbortController();
-            abortRef.current = ac;
+  const appendMessage = React.useCallback((m: ChatMessage) => {
+    setMessages((prev) => [...prev, m]);
+  }, []);
 
-            setBusy(true);
-
-            const userMsg: ChatMessage = {
-                id: uid(),
-                role: "user",
-                content: trimmed,
-                createdAt: Date.now(),
-                inputMode: sr.listening ? "voice" : "text",
-            };
-
-            appendMessage(userMsg);
-
-            const assistantId = uid();
-            appendMessage({
-                id: assistantId,
-                role: "assistant",
-                content: "",
-                createdAt: Date.now(),
-            });
-
-            const historySnapshot = [...messages, userMsg];
-            const openaiMessages = toOpenAIMessages(historySnapshot);
-
-            try {
-                for await (const delta of streamChatCompletion({
-                    baseUrl: apiBase,
-                    model: modelName,
-                    messages: openaiMessages,
-                    signal: ac.signal,
-                })) {
-                    updateAssistantMessage(assistantId, delta);
-                }
-            } catch (e: any) {
-                updateAssistantMessage(assistantId, `\n[error] ${e?.message ?? String(e)}`);
-            } finally {
-                setBusy(false);
-            }
-        },
-        [apiBase, modelName, appendMessage, messages, sr.listening, updateAssistantMessage]
+  const updateAssistantMessage = React.useCallback((assistantId: string, delta: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)),
     );
+  }, []);
 
-    const onSendText = async () => {
-        const t = text;
-        setText("");
-        await runChat(t);
-    };
+  const stopTtsController = React.useCallback(() => {
+    const ctl = ttsRef.current;
+    if (!ctl) return;
 
-    const onVoiceStart = () => {
-        sr.reset();
-        sr.start();
-    };
+    ctl.enabled = false;
+    try {
+      ctl.abort.abort();
+    } catch {}
 
-    const onVoiceStop = () => {
-        sr.stop();
-    };
+    if (ctl.fastStartTimer != null) {
+      window.clearTimeout(ctl.fastStartTimer);
+      ctl.fastStartTimer = null;
+    }
 
-    const clear = () => {
-        abortRef.current?.abort();
-        setMessages([]);
-        setText("");
-        try {
-            window.localStorage.removeItem(LS_KEY);
-        } catch { }
-    };
+    ttsRef.current = null;
+    setTtsEnabledFor(null);
+    setTtsBusyFor(null);
+    audioQ.stop();
+  }, [audioQ]);
 
-    return (
-        <div className="mx-auto max-w-4xl p-4">
-            <div className="navbar bg-base-100 rounded-box shadow-sm">
-                <div className="flex-1">
-                    <span className="text-lg font-semibold">Local Chat</span>
-                    <span className="ml-3 text-sm opacity-70">Browser STT → Backend streaming text</span>
-                </div>
-                <div className="flex-none gap-2">
-                    <button className="btn btn-ghost btn-sm" onClick={clear} disabled={busy}>
-                        Clear
-                    </button>
-                </div>
-            </div>
+  const scheduleTtsSegment = React.useCallback(
+    (ctl: TtsController, segmentText: string) => {
+      const localRunId = ctl.runId;
 
-            <div className="card bg-base-100 shadow-sm mt-4">
-                <div className="card-body">
-                    <MessageList messages={messages} />
-                </div>
-            </div>
+      ctl.chain = ctl.chain
+        .then(async () => {
+          if (!ttsRef.current || ttsRef.current.runId !== localRunId || !ttsRef.current.enabled) {
+            return;
+          }
 
-            <div className="card bg-base-100 shadow-sm mt-3">
-                <div className="card-body">
-                    <Composer
-                        text={text}
-                        setText={setText}
-                        onSendText={onSendText}
-                        onVoiceStart={onVoiceStart}
-                        onVoiceStop={onVoiceStop}
-                        listening={sr.listening}
-                        supported={sr.supported}
-                        interim={sr.interimText}
-                        error={sr.error}
-                        busy={busy}
-                    />
-                </div>
-            </div>
+          setTtsBusyFor(ctl.messageId);
+
+          const wavBlob = await fetchSpeechWav({
+            input: segmentText,
+            voice: "af_heart",
+            speed: 1.0,
+            model: "kokoro-82m",
+            signal: ctl.abort.signal,
+          });
+
+          if (!ttsRef.current || ttsRef.current.runId !== localRunId || !ttsRef.current.enabled) {
+            return;
+          }
+
+          audioQ.enqueue(blobToObjectUrl(wavBlob));
+        })
+        .catch((e) => {
+          if (e?.name === "AbortError") return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === ctl.messageId
+                ? { ...m, content: m.content + `\n\n[tts error] ${e?.message ?? String(e)}` }
+                : m,
+            ),
+          );
+        })
+        .finally(() => {
+          if (ttsRef.current && ttsRef.current.messageId === ctl.messageId) setTtsBusyFor(null);
+        });
+    },
+    [audioQ],
+  );
+
+  const enableSpeechForMessage = React.useCallback(
+    (messageId: string) => {
+      const msg = messages.find((m) => m.id === messageId);
+      if (!msg || msg.role !== "assistant" || !msg.content.trim()) return;
+
+      stopTtsController();
+
+      const ctl: TtsController = {
+        messageId,
+        enabled: true,
+        segmenter: new StreamingTtsSegmenter(20, 240, 60),
+        abort: new AbortController(),
+        runId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        chain: Promise.resolve(),
+        fastStartTimer: null,
+      };
+
+      ttsRef.current = ctl;
+      setTtsEnabledFor(messageId);
+
+      // prime from existing content
+      const initialSegments = ctl.segmenter.feed(msg.content);
+      for (const seg of initialSegments) scheduleTtsSegment(ctl, seg);
+
+      // fast-start partial flush
+      ctl.fastStartTimer = window.setTimeout(() => {
+        const c = ttsRef.current;
+        if (!c || !c.enabled || c.messageId !== messageId) return;
+        const segs = c.segmenter.flushPartialForFastStart();
+        for (const s of segs) scheduleTtsSegment(c, s);
+      }, 350);
+    },
+    [messages, scheduleTtsSegment, stopTtsController],
+  );
+
+  const stopSpeechForMessage = React.useCallback(
+    (messageId: string) => {
+      const ctl = ttsRef.current;
+      if (ctl && ctl.messageId === messageId) stopTtsController();
+    },
+    [stopTtsController],
+  );
+
+  const runChat = React.useCallback(
+    async (userText: string, inputMode: "text" | "voice") => {
+      const trimmed = userText.trim();
+      if (!trimmed) return;
+
+      abortChatRef.current?.abort();
+      const ac = new AbortController();
+      abortChatRef.current = ac;
+
+      setBusy(true);
+
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        content: trimmed,
+        createdAt: Date.now(),
+        inputMode,
+      };
+      appendMessage(userMsg);
+
+      const assistantId = uid();
+      setStreamingAssistantId(assistantId);
+
+      appendMessage({
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        createdAt: Date.now(),
+      });
+
+      const openaiMessages = toOpenAIMessages([...messages, userMsg]);
+
+      try {
+        for await (const delta of streamChatCompletion({
+          model: modelName,
+          messages: openaiMessages,
+          signal: ac.signal,
+        })) {
+          updateAssistantMessage(assistantId, delta);
+
+          const ctl = ttsRef.current;
+          if (ctl && ctl.enabled && ctl.messageId === assistantId) {
+            const segs = ctl.segmenter.feed(delta);
+            for (const s of segs) scheduleTtsSegment(ctl, s);
+          }
+        }
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          updateAssistantMessage(assistantId, `\n[error] ${e?.message ?? String(e)}`);
+        }
+      } finally {
+        setBusy(false);
+        setStreamingAssistantId((cur) => (cur === assistantId ? null : cur));
+
+        const ctl = ttsRef.current;
+        if (ctl && ctl.enabled && ctl.messageId === assistantId) {
+          const segs = ctl.segmenter.flushAll();
+          for (const s of segs) scheduleTtsSegment(ctl, s);
+        }
+      }
+    },
+    [appendMessage, messages, modelName, scheduleTtsSegment, updateAssistantMessage],
+  );
+
+  const clear = () => {
+    abortChatRef.current?.abort();
+    stopTtsController();
+    setStreamingAssistantId(null);
+    setMessages([]);
+    setText("");
+    clearChatHistory();
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl p-4">
+      <div className="navbar bg-base-100 rounded-box shadow-sm">
+        <div className="flex-1">
+          <span className="text-lg font-semibold">Marian</span>
+          <span className="ml-3 text-sm opacity-70">Base Interface</span>
         </div>
-    );
+
+        <div className="flex-none gap-2 items-center">
+          {(audioQ.playing || audioQ.queuedCount > 0) && (
+            <span className="text-sm opacity-70">
+              Audio: {audioQ.playing ? "playing" : "idle"} • queued {audioQ.queuedCount}
+            </span>
+          )}
+
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={stopTtsController}
+            disabled={!ttsEnabledFor && !ttsBusyFor && !audioQ.playing && audioQ.queuedCount === 0}
+          >
+            Stop audio
+          </button>
+
+          <button className="btn btn-ghost btn-sm" onClick={clear} disabled={busy}>
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm mt-4">
+        <div className="card-body">
+          <MessageList
+            messages={messages}
+            onPlayAssistant={enableSpeechForMessage}
+            onStopAssistant={stopSpeechForMessage}
+            ttsEnabledFor={ttsEnabledFor}
+            ttsBusyFor={ttsBusyFor}
+          />
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm mt-3">
+        <div className="card-body">
+          <Composer
+            text={text}
+            setText={setText}
+            onSendText={() => {
+              const t = text;
+              setText("");
+              void runChat(t, "text");
+            }}
+            onVoiceStart={() => {
+              sr.reset();
+              sr.start();
+            }}
+            onVoiceStop={sr.stop}
+            listening={sr.listening}
+            supported={sr.supported}
+            interim={sr.interimText}
+            error={sr.error}
+            busy={busy}
+          />
+
+          {streamingAssistantId && (
+            <div className="mt-2 text-xs opacity-70">
+              Streaming response…{ttsEnabledFor === streamingAssistantId ? " (speech enabled)" : ""}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

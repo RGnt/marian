@@ -113,9 +113,7 @@ def openai_full_response(
 
 
 def build_agent(model_name: str) -> Agent:
-    provider = OpenAIProvider(
-        base_url="http://localhost:8080", api_key="llama.cpp"
-    )
+    provider = OpenAIProvider(base_url="http://localhost:8080", api_key="llama.cpp")
     model = OpenAIChatModel(model_name, provider=provider)
     return Agent(
         model,

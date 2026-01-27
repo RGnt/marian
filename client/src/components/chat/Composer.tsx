@@ -2,63 +2,61 @@ import * as React from "react";
 
 export function Composer(props: {
   text: string;
-  setText: (t: string) => void;
-
+  setText: (v: string) => void;
   onSendText: () => void;
 
   onVoiceStart: () => void;
   onVoiceStop: () => void;
+
   listening: boolean;
   supported: boolean;
   interim: string;
   error: string | null;
-
   busy: boolean;
 }) {
-  const placeholder = props.listening ? props.interim || "Listening…" : "Type a message…";
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      props.onSendText();
+    }
+  };
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        {!props.supported && (
-          <div className="text-sm opacity-70">
-            Browser Speech API not supported in this browser.
-          </div>
-        )}
-        {props.error && (
-          <div className="text-sm opacity-70">Speech error: {props.error}</div>
-        )}
-      </div>
+      {props.supported ? (
+        <div className="text-xs opacity-70">
+          Speech: {props.listening ? "listening…" : "idle"}
+          {props.interim ? ` • interim: "${props.interim}"` : ""}
+          {props.error ? ` • error: ${props.error}` : ""}
+        </div>
+      ) : (
+        <div className="text-xs opacity-70">SpeechRecognition not supported in this browser.</div>
+      )}
 
-      <div className="flex gap-2">
-        <input
-          className="input input-bordered w-full"
+      <div className="flex gap-2 items-end">
+        <textarea
+          className="textarea textarea-bordered w-full"
+          rows={3}
           value={props.text}
           onChange={(e) => props.setText(e.target.value)}
-          placeholder={placeholder}
+          onKeyDown={onKeyDown}
+          placeholder="Type a message…"
           disabled={props.busy}
         />
 
-        <button
-          className={`btn ${props.listening ? "btn-secondary" : "btn-outline"}`}
-          disabled={props.busy || !props.supported}
-          onMouseDown={props.onVoiceStart}
-          onMouseUp={props.onVoiceStop}
-          onTouchStart={props.onVoiceStart}
-          onTouchEnd={props.onVoiceStop}
-          aria-pressed={props.listening}
-          title="Hold to speak"
-        >
-          🎙️
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            className={`btn btn-outline ${props.listening ? "btn-secondary" : ""}`}
+            onClick={props.listening ? props.onVoiceStop : props.onVoiceStart}
+            disabled={!props.supported || props.busy}
+          >
+            {props.listening ? "Stop" : "Mic"}
+          </button>
 
-        <button
-          className="btn btn-primary"
-          disabled={props.busy || !props.text.trim()}
-          onClick={props.onSendText}
-        >
-          Send
-        </button>
+          <button className="btn btn-primary" onClick={props.onSendText} disabled={props.busy}>
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );

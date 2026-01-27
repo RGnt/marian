@@ -9,27 +9,87 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as V1ChatCompletionsRouteImport } from './routes/v1/chat/completions'
+import { Route as V1AudioSpeechRouteImport } from './routes/v1/audio/speech'
 
-export interface FileRoutesByFullPath {}
-export interface FileRoutesByTo {}
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1ChatCompletionsRoute = V1ChatCompletionsRouteImport.update({
+  id: '/v1/chat/completions',
+  path: '/v1/chat/completions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1AudioSpeechRoute = V1AudioSpeechRouteImport.update({
+  id: '/v1/audio/speech',
+  path: '/v1/audio/speech',
+  getParentRoute: () => rootRouteImport,
+} as any)
+
+export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
+  '/v1/audio/speech': typeof V1AudioSpeechRoute
+  '/v1/chat/completions': typeof V1ChatCompletionsRoute
+}
+export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/v1/audio/speech': typeof V1AudioSpeechRoute
+  '/v1/chat/completions': typeof V1ChatCompletionsRoute
+}
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/v1/audio/speech': typeof V1AudioSpeechRoute
+  '/v1/chat/completions': typeof V1ChatCompletionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: never
+  fullPaths: '/' | '/v1/audio/speech' | '/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
-  to: never
-  id: '__root__'
+  to: '/' | '/v1/audio/speech' | '/v1/chat/completions'
+  id: '__root__' | '/' | '/v1/audio/speech' | '/v1/chat/completions'
   fileRoutesById: FileRoutesById
 }
-export interface RootRouteChildren {}
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {}
+export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
+  V1AudioSpeechRoute: typeof V1AudioSpeechRoute
+  V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
 }
 
-const rootRouteChildren: RootRouteChildren = {}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/chat/completions': {
+      id: '/v1/chat/completions'
+      path: '/v1/chat/completions'
+      fullPath: '/v1/chat/completions'
+      preLoaderRoute: typeof V1ChatCompletionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/audio/speech': {
+      id: '/v1/audio/speech'
+      path: '/v1/audio/speech'
+      fullPath: '/v1/audio/speech'
+      preLoaderRoute: typeof V1AudioSpeechRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
+}
+
+const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  V1AudioSpeechRoute: V1AudioSpeechRoute,
+  V1ChatCompletionsRoute: V1ChatCompletionsRoute,
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()

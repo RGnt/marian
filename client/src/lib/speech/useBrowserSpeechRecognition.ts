@@ -1,35 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
 
-function getCtor(): any | null {
-  if (typeof window === "undefined") return null;
-  const w = window as any;
-  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
-}
+type SpeechRec = any;
 
-export function useBrowserSpeechRecognition(opts?: {
-  lang?: string;
-  continuous?: boolean;
-  interimResults?: boolean;
+export function useBrowserSpeechRecognition(opts: {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
 }) {
-  const Ctor = useMemo(() => getCtor(), []);
-  const recRef = useRef<any | null>(null);
+  const [supported, setSupported] = React.useState(false);
+  const [listening, setListening] = React.useState(false);
+  const [interimText, setInterimText] = React.useState("");
+  const [finalText, setFinalText] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
 
-  const [supported] = useState<boolean>(!!Ctor);
-  const [listening, setListening] = useState(false);
-  const [finalText, setFinalText] = useState("");
-  const [interimText, setInterimText] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const recRef = React.useRef<SpeechRec | null>(null);
 
-  useEffect(() => {
-    if (!Ctor) return;
+  React.useEffect(() => {
+    const w = window as any;
+    const Ctor = w?.SpeechRecognition ?? w?.webkitSpeechRecognition;
+    if (!Ctor) {
+      setSupported(false);
+      return;
+    }
+
+    setSupported(true);
 
     const rec = new Ctor();
-    recRef.current = rec;
-
-    rec.lang = opts?.lang ?? "en-US";
-    rec.continuous = opts?.continuous ?? false;
-    rec.interimResults = opts?.interimResults ?? true;
-    rec.maxAlternatives = 1;
+    rec.lang = opts.lang;
+    rec.continuous = opts.continuous;
+    rec.interimResults = opts.interimResults;
 
     rec.onstart = () => {
       setError(null);
@@ -42,50 +41,57 @@ export function useBrowserSpeechRecognition(opts?: {
     };
 
     rec.onerror = (e: any) => {
-      setError(e?.error ?? "speech_recognition_error");
+      setError(e?.error ?? "speech_error");
+      setListening(false);
     };
 
-    rec.onresult = (event: any) => {
+    rec.onresult = (e: any) => {
       let interim = "";
-      let final = "";
+      let finals = "";
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const res = event.results[i];
-        const text = res?.[0]?.transcript ?? "";
-        if (res.isFinal) final += text;
-        else interim += text;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        const txt = r?.[0]?.transcript ?? "";
+        if (r.isFinal) finals += txt;
+        else interim += txt;
       }
 
-      if (final) setFinalText((prev) => (prev + " " + final).trim());
-      setInterimText(interim.trim());
+      if (interim) setInterimText(interim.trim());
+      if (finals) setFinalText(finals.trim());
     };
+
+    recRef.current = rec;
 
     return () => {
-      try { rec.stop(); } catch {}
+      try {
+        rec.stop();
+      } catch { }
       recRef.current = null;
     };
-  }, [Ctor, opts?.lang, opts?.continuous, opts?.interimResults]);
+  }, [opts.lang, opts.continuous, opts.interimResults]);
 
-  const start = () => {
+  const start = React.useCallback(() => {
+    if (!recRef.current) return;
     setFinalText("");
     setInterimText("");
     setError(null);
-    const rec = recRef.current;
-    if (!rec) return;
-    try { rec.start(); } catch {}
-  };
+    try {
+      recRef.current.start();
+    } catch { }
+  }, []);
 
-  const stop = () => {
-    const rec = recRef.current;
-    if (!rec) return;
-    try { rec.stop(); } catch {}
-  };
+  const stop = React.useCallback(() => {
+    if (!recRef.current) return;
+    try {
+      recRef.current.stop();
+    } catch { }
+  }, []);
 
-  const reset = () => {
+  const reset = React.useCallback(() => {
     setFinalText("");
     setInterimText("");
     setError(null);
-  };
+  }, []);
 
-  return { supported, listening, finalText, interimText, error, start, stop, reset };
+  return { supported, listening, interimText, finalText, error, start, stop, reset };
 }

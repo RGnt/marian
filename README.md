@@ -2,6 +2,8 @@
 
 A local-first chat app with streamed text responses and optional text-to-speech playback.
 
+Quick video to showcase, and few words about it, https://www.youtube.com/watch?v=JrIQ3nIqS6I
+
 ## Features
 
 - **Chat UI** with message history
@@ -29,7 +31,7 @@ From `server/`:
 
 ```bash
 uv sync
-uv run uvicorn app:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ````
 
 Environment (example):

@@ -2,6 +2,8 @@
 
 A local-first chat app with streamed text responses and optional text-to-speech playback.
 
+Video with the Graphiti, and Langfuse in use, https://www.youtube.com/watch?v=otY_Et20gFU
+
 Quick video to showcase, and few words about it, https://www.youtube.com/watch?v=JrIQ3nIqS6I
 
 ## Features

@@ -13,8 +13,6 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 def markdown_to_tts_text(md: str) -> str:
     """
     Convert markdown into speech-friendly text.
-
-    Requirements from your spec:
     - Remove markdown formatting for TTS only
     - For fenced code blocks: replace with 'Check the code below.'
     - Preserve normal text content
@@ -24,19 +22,14 @@ def markdown_to_tts_text(md: str) -> str:
         return ""
 
     text = md
-
     # Replace fenced code blocks entirely
     text = _FENCED_CODE_BLOCK_RE.sub("\nCheck the code below.\n", text)
-
     # Images -> alt text
     text = _MD_IMAGE_RE.sub(lambda m: m.group(1) or "image", text)
-
     # Links -> link text only
     text = _MD_LINK_RE.sub(lambda m: m.group(1), text)
-
     # Inline code -> keep content (spoken)
     text = _INLINE_CODE_RE.sub(lambda m: m.group(1), text)
-
     # Headings / blockquotes / list markers - keep content
     text = re.sub(r"^\s{0,3}#{1,6}\s+", "", text, flags=re.MULTILINE)  # headings
     text = re.sub(r"^\s{0,3}>\s?", "", text, flags=re.MULTILINE)  # blockquotes

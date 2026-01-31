@@ -1,102 +1,168 @@
-# Local Chat (TanStack Start + FastAPI)
+# Local AI Assistant (TanStack Start + FastAPI)
 
-A local-first chat app with streamed text responses and optional text-to-speech playback.
+A robust, local-first chat application featuring streaming responses, real-time Text-to-Speech (TTS), and persistent conversation history. It is designed to run offline with local LLMs (via Ollama/LM Studio) but supports external providers.
 
-Video with the Graphiti, and Langfuse in use, https://www.youtube.com/watch?v=otY_Et20gFU
-
-Quick video to showcase, and few words about it, https://www.youtube.com/watch?v=JrIQ3nIqS6I
+**New in v0.2:**
+- **Persistent History:** Chats are saved to a local SQLite database.
+- **Session Management:** Sidebar to create, switch, and delete conversations.
+- **Dual Memory Architecture:**
+  - **Short-term:** SQLite (immediate context).
+  - **Long-term:** Graphiti/Memgraph (Knowledge Graph for fact recall) - *Optional*.
+- **Observability:** Langfuse integration for tracing and metrics - *Optional*.
 
 ## Features
 
-- **Chat UI** with message history
-- **Markdown rendering** for assistant messages (GFM support)
-- **Streaming text responses** from an OpenAI-compatible endpoint (`/v1/chat/completions`)
-- **Speech input** via Browser Speech API (optional)
-- **Text-to-speech** via OpenAI-compatible endpoint (`/v1/audio/speech`) using Kokoro
-- **Play while streaming**: enable speech on a message and it will start speaking as soon as segments are available
-- **Stop playback** (clears queued audio)
+- **Chat UI**: Modern interface with Markdown rendering (GFM) and auto-scrolling.
+- **Session Sidebar**: Manage multiple conversation threads.
+- **Streaming**: Real-time token streaming for low latency.
+- **Text-to-Speech**: High-quality, local neural TTS using **Kokoro** (82M model).
+  - *Streaming Audio*: Plays audio segments while the text is still generating.
+- **Speech-to-Text**: Browser-native speech recognition.
+- **Resilient Architecture**: Falls back gracefully if Memory (Graphiti) or Observability (Langfuse) services are not available.
 
 ## Project Layout
 
-- `client/` — TanStack Start app (Bun + Vite)
-- `server/` — FastAPI backend (OpenAI-compatible routes + Kokoro TTS)
+- `client/` — Frontend (TanStack Start, React, Tailwind, DaisyUI).
+- `server/` — Backend (FastAPI, SQLite, Kokoro TTS, Graphiti integration).
 
 ## Prerequisites
 
 - **Bun** (for the client)
 - **Python 3.12+** and **uv** (for the server)
-- Optional: a local LLM server compatible with OpenAI Chat Completions (e.g. `llama-server` from llama.cpp)
+- **Local LLM Server** (Optional but recommended): E.g., `llama-server`, Ollama, or LM Studio running on port 8080/11434.
+- **Docker** (Optional): If you want to use Graphiti (Memgraph) or Langfuse.
 
-## Start the Server (FastAPI)
+---
 
-From `server/`:
+## 1. Backend Setup (`server/`)
+
+The backend handles the LLM orchestration, TTS generation, and database interactions.
+
+### Installation
 
 ```bash
+cd server
 uv sync
+
+```
+
+### Configuration (.env)
+
+Create a `.env` file in the `server/` directory.
+
+**Minimal Setup (SQLite Only):**
+
+```bash
+# LLM Connection (Ollama/LM Studio/OpenAI)
+LLM_BASE_URL="[http://127.0.0.1:8080/v1](http://127.0.0.1:8080/v1)"
+LLM_API_KEY="local"
+LLM_MODEL="local-model"
+
+# TTS Configuration
+KOKORO_VOICE="af_heart"
+
+```
+
+**Full Setup (With Memory & Observability):**
+
+```bash
+# ... (LLM settings above)
+
+# Graphiti (Long-term Memory) - Requires Memgraph running
+GRAPHITI_URL="bolt://localhost:7687"
+GRAPHITI_USER=""
+GRAPHITI_PASSWORD=""
+
+# Langfuse (Observability)
+LANGFUSE_SECRET_KEY="sk-lf-..."
+LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_HOST="http://localhost:3000"
+
+```
+
+### Run Server
+
+```bash
 uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
-````
 
-Environment (example):
-
-```bash
-# OpenAI-compatible upstream (llama-server etc.)
-export OPENAI_BASE_URL="http://127.0.0.1:8080/v1"
-export OPENAI_API_KEY="local"
-
-# If your server uses these:
-export MODEL_NAME="local-model"
 ```
 
-## Start the Client (TanStack Start)
+*The server will automatically initialize `chat_history.db` (SQLite) on first run.*
 
-From `client/`:
+---
+
+## 2. Frontend Setup (`client/`)
+
+The frontend is a TanStack Start application that proxies API requests to the Python backend.
+
+### Installation
 
 ```bash
+cd client
 bun install
-bun --bun run dev
+
 ```
 
-Environment (example):
+### Configuration
+
+Create a `.env` file in the `client/` directory:
 
 ```bash
-# Used by the client for the model name in /v1/chat/completions requests
-export VITE_MODEL_NAME="local-model"
+# Backend URL (FastAPI)
+FASTAPI_BASE_URL="[http://127.0.0.1:8000](http://127.0.0.1:8000)"
 
-# If you proxy via Start server routes to FastAPI:
-export FASTAPI_BASE_URL="http://127.0.0.1:8000"
+# Model Name (Used for UI display and API requests)
+VITE_MODEL_NAME="local-model"
+
 ```
 
-Open the client at the URL shown in the terminal (typically `http://localhost:3000`).
+### Run Client
 
-## Usage
+```bash
+bun run dev
 
-1. Type a message (or use the mic if supported) and send.
-2. Assistant responses stream in as markdown.
-3. Click **Play** on an assistant message to start TTS (can be enabled while the message is still streaming).
-4. Click **Stop** to cancel generation and stop playback.
+```
 
+Open your browser to `http://localhost:3000`.
 
-# Troubleshooting
+---
 
-### “No module named pip” (uv venv)
+## Optional Services (Docker)
 
-* Fix: `uv venv --seed` OR `uv pip install pip`.
-* Avoid copying pip between venvs unless you’re unblocking yourself temporarily.
+To enable the advanced features, run these services via Docker.
 
-### Kokoro startup fails with spaCy download / SystemExit
+### Graphiti (Long-term Memory)
 
-* Install `en_core_web_sm` ahead of time (wheel install is most reliable).
-* Then restart the server.
+Requires a Memgraph instance.
 
-### Browser Speech API not working
+```bash
+docker run -p 7687:7687 -p 7444:7444 --name memgraph memgraph/memgraph-platform
 
-* Some browsers/OS setups don’t support `SpeechRecognition`.
-* Check your browser devtools console for permission or “not supported” errors.
+```
 
-### CORS errors
+### Langfuse (Observability)
 
-* Ensure the exact origin in the browser address bar is in `allow_origins`:
+Refer to the [Langfuse Self-Hosting docs](https://langfuse.com/docs/deployment/self-host) or use their cloud tier.
 
-  * `localhost` vs `127.0.0.1` matters
-  * port matters (`5173` vs `3000`)
+---
 
+## Troubleshooting
+
+### "Sessions are not loading / Chats stacking on 'default'"
+
+* Ensure your client `.env` has the correct `FASTAPI_BASE_URL`.
+* Check the browser network tab. Requests to `/v1/chat/completions` must have a `session_id` in the **Response Headers** or **Query Parameters** (handled automatically by the TanStack proxy).
+
+### "Graphiti/Langfuse connection failed"
+
+* The server logs will show a warning but **will not crash**. The app will continue to function in "SQLite-only" mode.
+* Verify Docker containers are running and ports match `.env`.
+
+### "No module named pip"
+
+* Run `uv venv` to recreate the virtual environment or use `uv pip install pip` if managing manually.
+
+### "Kokoro SystemExit / spaCy error"
+
+* Kokoro requires the `en_core_web_sm` spaCy model.
+* Run: `uv run python -m spacy download en_core_web_sm`

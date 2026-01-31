@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as V1SessionsRouteImport } from './routes/v1/sessions'
+import { Route as V1SessionsSessionIdRouteImport } from './routes/v1/sessions/$sessionId'
 import { Route as V1ChatCompletionsRouteImport } from './routes/v1/chat/completions'
 import { Route as V1AudioSpeechRouteImport } from './routes/v1/audio/speech'
 
@@ -17,6 +19,16 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const V1SessionsRoute = V1SessionsRouteImport.update({
+  id: '/v1/sessions',
+  path: '/v1/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1SessionsSessionIdRoute = V1SessionsSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => V1SessionsRoute,
 } as any)
 const V1ChatCompletionsRoute = V1ChatCompletionsRouteImport.update({
   id: '/v1/chat/completions',
@@ -31,30 +43,53 @@ const V1AudioSpeechRoute = V1AudioSpeechRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/v1/sessions': typeof V1SessionsRouteWithChildren
   '/v1/audio/speech': typeof V1AudioSpeechRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
+  '/v1/sessions/$sessionId': typeof V1SessionsSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/v1/sessions': typeof V1SessionsRouteWithChildren
   '/v1/audio/speech': typeof V1AudioSpeechRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
+  '/v1/sessions/$sessionId': typeof V1SessionsSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/v1/sessions': typeof V1SessionsRouteWithChildren
   '/v1/audio/speech': typeof V1AudioSpeechRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
+  '/v1/sessions/$sessionId': typeof V1SessionsSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/v1/audio/speech' | '/v1/chat/completions'
+  fullPaths:
+    | '/'
+    | '/v1/sessions'
+    | '/v1/audio/speech'
+    | '/v1/chat/completions'
+    | '/v1/sessions/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/v1/audio/speech' | '/v1/chat/completions'
-  id: '__root__' | '/' | '/v1/audio/speech' | '/v1/chat/completions'
+  to:
+    | '/'
+    | '/v1/sessions'
+    | '/v1/audio/speech'
+    | '/v1/chat/completions'
+    | '/v1/sessions/$sessionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/v1/sessions'
+    | '/v1/audio/speech'
+    | '/v1/chat/completions'
+    | '/v1/sessions/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  V1SessionsRoute: typeof V1SessionsRouteWithChildren
   V1AudioSpeechRoute: typeof V1AudioSpeechRoute
   V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
 }
@@ -67,6 +102,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/v1/sessions': {
+      id: '/v1/sessions'
+      path: '/v1/sessions'
+      fullPath: '/v1/sessions'
+      preLoaderRoute: typeof V1SessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/sessions/$sessionId': {
+      id: '/v1/sessions/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/v1/sessions/$sessionId'
+      preLoaderRoute: typeof V1SessionsSessionIdRouteImport
+      parentRoute: typeof V1SessionsRoute
     }
     '/v1/chat/completions': {
       id: '/v1/chat/completions'
@@ -85,8 +134,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface V1SessionsRouteChildren {
+  V1SessionsSessionIdRoute: typeof V1SessionsSessionIdRoute
+}
+
+const V1SessionsRouteChildren: V1SessionsRouteChildren = {
+  V1SessionsSessionIdRoute: V1SessionsSessionIdRoute,
+}
+
+const V1SessionsRouteWithChildren = V1SessionsRoute._addFileChildren(
+  V1SessionsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  V1SessionsRoute: V1SessionsRouteWithChildren,
   V1AudioSpeechRoute: V1AudioSpeechRoute,
   V1ChatCompletionsRoute: V1ChatCompletionsRoute,
 }

@@ -64,18 +64,26 @@ class SQLiteChatHistory:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
 
+            # FIXED QUERY:
+            # 1. Get distinct session_IDs and their latest message time.
+            # 2. Subquery to find the first user message for the title.
+            # 3. Coalesce title to "New Chat" if no user message exists yet.
             query = """
-                SELECT
-                    session_id,
-                    MAX(created_at) as last_update,
-                    (SELECT content FROM messages m2
-                     WHERE m2.session_id = m1.session_id
-                     AND role = 'user'
-                     ORDER BY id ASC LIMIT 1) as title
-                FROM messages m1
-                GROUP BY session_id
+                SELECT 
+                    m.session_id,
+                    MAX(m.created_at) as last_update,
+                    COALESCE(
+                        (SELECT content FROM messages m2 
+                         WHERE m2.session_id = m.session_id 
+                         AND m2.role = 'user' 
+                         ORDER BY m2.id ASC LIMIT 1),
+                        'New Conversation'
+                    ) as title
+                FROM messages m
+                GROUP BY m.session_id
                 ORDER BY last_update DESC
             """
+
             cursor = await db.execute(query)
             rows = await cursor.fetchall()
 
@@ -83,19 +91,29 @@ class SQLiteChatHistory:
             for r in rows:
                 sid = r["session_id"]
                 raw_time = r["last_update"]
-                title = r["title"] or "New Conversation"
+                title = r["title"]
 
-                # Truncate
+                # Truncate title
                 if len(title) > 60:
                     title = title[:60] + "..."
 
-                # Parse Timestamp
-                try:
-                    dt = datetime.strptime(raw_time, "%Y-%m-%d %H:%M:%S")
-                    dt = dt.replace(tzinfo=timezone.utc)
-                    ts = dt.timestamp() * 1000  # ms for JS
-                except Exception:
-                    ts = float(0)
+                # Robust Timestamp Parsing
+                # SQLite often stores as 'YYYY-MM-DD HH:MM:SS', but sometimes fails to default correctly
+                ts = 0.0
+                if raw_time:
+                    try:
+                        # Attempt standard SQLite string format
+                        dt = datetime.strptime(raw_time, "%Y-%m-%d %H:%M:%S")
+                        dt = dt.replace(tzinfo=timezone.utc)
+                        ts = dt.timestamp() * 1000
+                    except ValueError:
+                        try:
+                            # Fallback if it stored microseconds
+                            dt = datetime.strptime(raw_time, "%Y-%m-%d %H:%M:%S.%f")
+                            dt = dt.replace(tzinfo=timezone.utc)
+                            ts = dt.timestamp() * 1000
+                        except Exception:
+                            pass
 
                 results.append(SessionSummary(id=sid, title=title, updated_at=ts))
             return results

@@ -6,7 +6,11 @@ export const Route = createFileRoute("/v1/audio/speech")({
     server: {
         handlers: {
             POST: async ({ request }) => {
-                const upstream = await fetch(`${FASTAPI_BASE_URL}/v1/audio/speech`, {
+                const incomingUrl = new URL(request.url);
+                const targetUrl = new URL(`${FASTAPI_BASE_URL}/v1/audio/speech`);
+                targetUrl.search = incomingUrl.search;
+
+                const upstream = await fetch(targetUrl, {
                     method: "POST",
                     headers: {
                         "content-type": request.headers.get("content-type") ?? "application/json",

@@ -8,3 +8,9 @@ export type ChatMessage = {
   createdAt: number;
   inputMode?: InputMode;
 };
+
+export type ChatSession = {
+  id: string;
+  title: string;
+  updatedAt: number;
+}

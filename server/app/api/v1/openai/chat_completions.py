@@ -35,6 +35,10 @@ async def chat_completions(
     OpenAI-compatible Chat Completions endpoint.
     Support streaming and non-streaming responses.
     """
+    # -- DEBUGGIES! ---
+    print(f"DEBUG INCOMING: Query session_id='{session_id}")
+    print(f"DEBUG INCOMING: URL='{request.url}")
+    # -- -- -- -- -- --
     created = int(time.time())
     resp_id = f"chatcmpl_{int(time.time() * 1000)}"
     model = req.model or "local-model"
@@ -42,7 +46,7 @@ async def chat_completions(
     actual_session_id = (
         session_id or request.headers.get("X-Session-ID") or "default_session"
     )
-
+    print(f"DEBUG INCOMING: Actual session_id='{actual_session_id}")
     # Non streaming
     if not req.stream:
         # Optional non-streaming: collect deltas

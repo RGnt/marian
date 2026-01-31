@@ -34,6 +34,7 @@ class ChatState(TypedDict):
     prompt: str
     user_query: str
     response: str
+    session_id: str
 
 
 def _messages_to_transcript(messages: List[ChatMessage]) -> str:
@@ -238,6 +239,7 @@ async def build_chat_runtime(
             "prompt": prompt,
             "response": response_acc,
             "user_query": user_query,
+            "session_id": session_id,
         }
 
     # Graph def

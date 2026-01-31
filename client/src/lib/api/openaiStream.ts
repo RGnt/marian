@@ -1,11 +1,17 @@
 export async function* streamChatCompletion(args: {
     model: string;
     messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string }>;
+    sessionId: string;
     signal?: AbortSignal;
 }): AsyncGenerator<string> {
-    const res = await fetch("/v1/chat/completions", {
+    // 2. Append session_id to the URL
+    const res = await fetch(`/v1/chat/completions?session_id=${args.sessionId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "X-session-ID": args.sessionId
+        },
         body: JSON.stringify({
             model: args.model,
             messages: args.messages,

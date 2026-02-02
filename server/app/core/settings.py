@@ -34,9 +34,12 @@ class Settings(BaseSettings):
     kokoro_repo_id: str = Field(default="hexgrad/Kokoro-82M")
 
     # Graphiti (Memory)
-    graphiti_url: str | None = Field(default="bolt://localhost:7687")
+    enable_graphiti: bool = Field(default=False, description="Enable long-term memory via Graphiti")
+
+    graphiti_url: str | None = Field(default=None)
     graphiti_user: str | None = Field(default="neo4j")
     graphiti_password: str | None = Field(default="supahsecret")
+
     # Graphiti (LLM used for extraction)
     graphiti_llm_base_url: str = Field(default="http://127.0.0.1:8080/v1")
     graphiti_llm_api_key: str = Field(default="local")
@@ -47,12 +50,6 @@ class Settings(BaseSettings):
     graphiti_embedding_base_url: Optional[str] = Field(
         default="http://127.0.0.1:8081/v1",
         description="OpenAI-compatible embeddings endpoint base URL (must include /v1).",
-    )
-
-    # Embeddings endpoint (OpenAI-compatible)
-    graphiti_embedding_base_url: Optional[str] = Field(
-        default="http://127.0.0.1:8081/v1",
-        description="OpenAI-compatible embeddings base URL (must include /v1)",
     )
     graphiti_embedding_api_key: str = Field(default="sk-placeholder")
     graphiti_embedding_model: str = Field(default="Qwen3-embedding-0.6B-Q8_0")
@@ -66,12 +63,10 @@ class Settings(BaseSettings):
     graphiti_embedding_dimensions: Optional[int] = Field(default=None)
 
     # Langfuse (Observability)
-    langfuse_secret_key: Optional[str] = Field(
-        default="sk-lf-829cb373-d0af-436d-9d2a-174c3f772eda"
-    )
-    langfuse_public_key: Optional[str] = Field(
-        default="pk-lf-f46d9e25-06c6-4f8f-88c4-4221e2233b8f"
-    )
+    enable_langfuse: bool = Field(default=False, description="Enable observability via Langfuse")
+
+    langfuse_secret_key: Optional[str] = Field(default=None)
+    langfuse_public_key: Optional[str] = Field(default=None)
 
     # Self-hosted usually runs at http://localhost:3000
     # Langfuse expects this as LANGFUSE_BASE_URL. :contentReference[oaicite:6]{index=6}
@@ -79,4 +74,6 @@ class Settings(BaseSettings):
 
     @property
     def is_langfuse_enabled(self) -> bool:
+        if not self.enable_langfuse:
+            return False
         return bool(self.langfuse_public_key and self.langfuse_secret_key)

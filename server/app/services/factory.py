@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 from app.core.settings import Settings
+from app.services.memory import MemoryClient, GraphitiMemoryClient, NoOpMemoryClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +19,15 @@ def initialize_langfuse(settings: Settings) -> Any | None:
     Safe to call even if Langfuse is not installed or configured.
     """
     if not settings.is_langfuse_enabled:
-        logger.info("Langfuse disabled (missing keys).")
+        logger.info("Langfuse disabled.")
         return None
 
     try:
         from langfuse import get_client
 
         # 1. Set Envs for the SDK
-        os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
-        os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+        os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key or ""
+        os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key or ""
         os.environ["LANGFUSE_BASE_URL"] = settings.langfuse_host
 
         # 2. Instrument PydanticAI
@@ -63,15 +64,20 @@ def initialize_langfuse(settings: Settings) -> Any | None:
 # -------------------------------------------------------------------------
 # GRAPHITI (MEMGRAPH) FACTORY
 # -------------------------------------------------------------------------
-async def initialize_graphiti(settings: Settings) -> Any | None:
+async def initialize_graphiti(settings: Settings) -> MemoryClient:
     """
     Attempts to connect to Graphiti (Memgraph).
-    Returns the Graphiti client or None if dependencies/connection fail.
+    Returns a MemoryClient (GraphitiMemoryClient or NoOpMemoryClient).
     """
+    # Fast exit if disabled
+    if not settings.enable_graphiti:
+        logger.info("Graphiti disabled by configuration.")
+        return NoOpMemoryClient()
+
     # Fast exit if no credentials/url provided
     if not settings.graphiti_url:
-        logger.info("Graphiti URL not set. Memory disabled.")
-        return None
+        logger.info("Graphiti enabled but URL not set. Memory disabled.")
+        return NoOpMemoryClient()
 
     try:
         from graphiti_core import Graphiti
@@ -80,7 +86,7 @@ async def initialize_graphiti(settings: Settings) -> Any | None:
         from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
     except ImportError:
         logger.info("Graphiti Core not installed. Memory disabled.")
-        return None
+        return NoOpMemoryClient()
 
     try:
         logger.info("Initializing Graphiti Memory...")
@@ -120,8 +126,8 @@ async def initialize_graphiti(settings: Settings) -> Any | None:
         # 4. Initialize Indices
         await client.build_indices_and_constraints()
         logger.info("Graphiti Memory initialized successfully.")
-        return client
+        return GraphitiMemoryClient(client)
 
     except Exception as e:
         logger.error(f"Failed to initialize Graphiti: {e}")
-        return None
+        return NoOpMemoryClient()

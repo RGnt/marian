@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Purpose: Manage application startup and shutdown resources.
+    How: Initializes settings, observability, memory, history, and runtime
+    services on startup, then performs best-effort cleanup on shutdown.
+    Parameters:
+        app: FastAPI application instance to attach runtime state.
+    Output:
+        AsyncIterator[None]: Context manager that yields control to FastAPI.
+    """
     settings = Settings()
     app.state.settings = settings
 
@@ -67,6 +76,15 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    """
+    Purpose: Build and configure the FastAPI application instance.
+    How: Creates the app with metadata, configures CORS, registers routes,
+    and defines a health check endpoint.
+    Parameters:
+        None.
+    Output:
+        FastAPI: Configured application instance.
+    """
     settings = Settings()
 
     app = FastAPI(
@@ -88,6 +106,14 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz")
     async def healthz():
+        """
+        Purpose: Health probe for load balancers or local checks.
+        How: Returns a static JSON payload to confirm the app is responsive.
+        Parameters:
+            None.
+        Output:
+            dict: Simple OK payload.
+        """
         return {"ok": True}
 
     return app

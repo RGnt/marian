@@ -16,6 +16,11 @@ from kokoro import KPipeline
 
 @dataclass
 class KokoroRuntime:
+    """
+    Purpose: Hold TTS runtime configuration and provide synthesis helpers.
+    How: Wraps a Kokoro pipeline plus defaults and exposes async/sync helpers
+    for WAV generation.
+    """
     pipeline: KPipeline
     sample_rate: int
     default_voice: str
@@ -31,7 +36,15 @@ class KokoroRuntime:
         speed: Optional[float] = None,
     ) -> bytes:
         """
-        Takes markdown input, cleans for TTS, generates WAV bytes.
+        Purpose: Convert markdown input into synthesized WAV audio bytes.
+        How: Cleans markdown to speech-friendly text, selects voice/speed,
+        then runs the synchronous pipeline in a thread executor.
+        Parameters:
+            text_markdown: Raw markdown text to synthesize.
+            voice: Optional override for the default voice.
+            speed: Optional override for the default speed.
+        Output:
+            bytes: WAV audio bytes (possibly an empty WAV if no text).
         """
         clean = markdown_to_tts_text(text_markdown)
         if not clean.strip():
@@ -51,6 +64,17 @@ class KokoroRuntime:
             )
 
     def _synth_wav_sync(self, clean_text: str, voice: str, speed: float) -> bytes:
+        """
+        Purpose: Run the Kokoro pipeline synchronously and return WAV bytes.
+        How: Streams PCM chunks from the pipeline, concatenates and converts
+        to int16 PCM, then packages into a WAV container.
+        Parameters:
+            clean_text: Pre-processed text without markdown artifacts.
+            voice: Voice identifier for the Kokoro model.
+            speed: Playback speed multiplier.
+        Output:
+            bytes: WAV audio bytes.
+        """
         chunks: list[np.ndarray] = []
 
         generator = self.pipeline(
@@ -80,6 +104,15 @@ class KokoroRuntime:
 
 
 def _wav_bytes_from_int16(pcm: np.ndarray, sample_rate: int) -> bytes:
+    """
+    Purpose: Wrap raw int16 PCM samples into a WAV container.
+    How: Writes WAV headers and frames using the built-in wave module.
+    Parameters:
+        pcm: 1-D numpy array of int16 audio samples.
+        sample_rate: Sample rate in Hz.
+    Output:
+        bytes: WAV file contents.
+    """
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(1)
@@ -90,10 +123,27 @@ def _wav_bytes_from_int16(pcm: np.ndarray, sample_rate: int) -> bytes:
 
 
 def _empty_wav(sample_rate: int) -> bytes:
+    """
+    Purpose: Produce a minimal WAV payload for empty audio.
+    How: Creates a single-sample int16 buffer and wraps it in WAV format.
+    Parameters:
+        sample_rate: Sample rate in Hz.
+    Output:
+        bytes: Minimal valid WAV bytes.
+    """
     return _wav_bytes_from_int16(np.zeros(1, dtype=np.int16), sample_rate)
 
 
 async def build_tts_runtime(settings: Settings) -> KokoroRuntime:
+    """
+    Purpose: Create a KokoroRuntime from application settings.
+    How: Instantiates the Kokoro pipeline and packs configuration into the
+    runtime dataclass with a shared async lock.
+    Parameters:
+        settings: Application settings containing Kokoro configuration.
+    Output:
+        KokoroRuntime: Ready-to-use TTS runtime.
+    """
     pipeline = KPipeline(lang_code=settings.kokoro_lang_code)
 
     return KokoroRuntime(

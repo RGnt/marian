@@ -14,14 +14,32 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
+/**
+ * Purpose: Convert internal message shape into OpenAI message format.
+ * How: Maps each message to `{ role, content }` with the same ordering.
+ * @param history - Full message history.
+ * @returns Array of OpenAI-compatible message objects.
+ */
 function toOpenAIMessages(history: ChatMessage[]) {
   return history.map((m) => ({ role: m.role, content: m.content }));
 }
 
+/**
+ * Purpose: Generate a simple unique id for messages and sessions.
+ * How: Combines random hex and timestamp hex.
+ * Parameters: None.
+ * @returns string - Unique-ish id string.
+ */
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+/**
+ * Purpose: Main chat application component with streaming and TTS.
+ * How: Orchestrates session state, streaming API calls, TTS, and UI layout.
+ * Parameters: None.
+ * @returns JSX.Element - Rendered chat application.
+ */
 export function ChatApp() {
   const modelName = import.meta.env.VITE_MODEL_NAME ?? "local-model";
 
@@ -53,6 +71,12 @@ export function ChatApp() {
 
   // --- Handlers ---
 
+  /**
+   * Purpose: Start a new chat session and reset UI state.
+   * How: Stops TTS, aborts streaming, clears input, and creates a new session.
+   * Parameters: None.
+   * @returns void - Side effects only.
+   */
   const handleNewChat = () => {
     tts.stop();
     abortChatRef.current?.abort();
@@ -62,6 +86,12 @@ export function ChatApp() {
     setSidebarOpen(false); // Close sidebar on mobile
   };
 
+  /**
+   * Purpose: Switch to a selected session.
+   * How: Stops TTS, aborts streaming, updates session, and closes the sidebar.
+   * @param id - Session id to activate.
+   * @returns void - Side effects only.
+   */
   const handleSelectSession = (id: string) => {
     if (id === session.currentSessionId) return;
     tts.stop();
@@ -71,6 +101,13 @@ export function ChatApp() {
     setSidebarOpen(false);
   };
 
+  /**
+   * Purpose: Send user input, stream assistant response, and update UI.
+   * How: Adds optimistic messages, streams deltas, feeds TTS, and updates
+   * session metadata when complete.
+   * Parameters: None.
+   * @returns Promise<void> - Resolves when the stream completes or aborts.
+   */
   const handleRunChat = async () => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;

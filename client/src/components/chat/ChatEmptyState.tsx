@@ -1,3 +1,9 @@
+/**
+ * Purpose: Show a friendly empty-state when no messages exist.
+ * How: Renders a hero panel with brief instructions and capability badges.
+ * Parameters: None.
+ * @returns JSX.Element - Rendered empty state.
+ */
 export function ChatEmptyState() {
     return (
         <div className="hero min-h-[50vh] bg-base-100">

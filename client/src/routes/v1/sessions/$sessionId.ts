@@ -6,11 +6,25 @@ const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL ?? "http://127.0.0.1:8000"
 export const Route = createFileRoute("/v1/sessions/$sessionId")({
   server: {
     handlers: {
+      /**
+       * Purpose: Proxy a session message fetch to the FastAPI backend.
+       * How: Forwards the session id and returns the upstream JSON response.
+       * @param request - Incoming TanStack request.
+       * @param params - Route parameters containing sessionId.
+       * @returns Response - Proxied upstream response.
+       */
       GET: async ({ request, params }) => {
         const { sessionId } = params;
         const upstream = await fetch(`${FASTAPI_BASE_URL}/v1/sessions/${sessionId}`, { signal: request.signal });
         return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
       },
+      /**
+       * Purpose: Proxy a session delete request to the FastAPI backend.
+       * How: Forwards the session id and returns the upstream response.
+       * @param request - Incoming TanStack request.
+       * @param params - Route parameters containing sessionId.
+       * @returns Response - Proxied upstream response.
+       */
       DELETE: async ({ request, params }) => {
         const { sessionId } = params;
         const upstream = await fetch(`${FASTAPI_BASE_URL}/v1/sessions/${sessionId}`, {

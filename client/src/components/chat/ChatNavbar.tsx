@@ -1,5 +1,11 @@
 import type { useAudioQueue } from "@/lib/audio/useAudioQueue";
 
+/**
+ * Purpose: Render the top navbar with title and audio controls.
+ * How: Displays sidebar toggle, app title, and stop-audio button when needed.
+ * @param props - Audio queue state and stop handler.
+ * @returns JSX.Element - Rendered navbar.
+ */
 export function ChatNavbar(props: {
     audioQ: ReturnType<typeof useAudioQueue>;
     onStopAudio: () => void;

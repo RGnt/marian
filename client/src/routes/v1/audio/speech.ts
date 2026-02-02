@@ -5,6 +5,13 @@ const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL ?? "http://127.0.0.1:8000"
 export const Route = createFileRoute("/v1/audio/speech")({
     server: {
         handlers: {
+            /**
+             * Purpose: Proxy TTS requests to the FastAPI backend.
+             * How: Forwards the request body and relevant headers, then returns
+             * the upstream audio response as-is.
+             * @param request - Incoming TanStack request.
+             * @returns Response - Proxied upstream response.
+             */
             POST: async ({ request }) => {
                 const incomingUrl = new URL(request.url);
                 const targetUrl = new URL(`${FASTAPI_BASE_URL}/v1/audio/speech`);

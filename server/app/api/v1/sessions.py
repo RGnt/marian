@@ -25,7 +25,13 @@ class MessageResponse(BaseModel):
 @router.get("/sessions", response_model=List[SessionResponse])
 async def list_sessions(history: SQLiteChatHistory = Depends(get_history_service)):
     """
-    List all chat sessions.
+    Purpose: List all chat sessions with titles and last-updated timestamps.
+    How: Queries the SQLite history service for session summaries and maps them
+    to the API response schema.
+    Parameters:
+        history: SQLite history service injected via dependency.
+    Output:
+        List[SessionResponse]: Sessions ordered by most recently updated.
     """
     sessions = await history.get_sessions()
     return [
@@ -39,7 +45,14 @@ async def get_session(
     session_id: str, history: SQLiteChatHistory = Depends(get_history_service)
 ):
     """
-    Get full message history for a specific session.
+    Purpose: Fetch all messages for a specific chat session.
+    How: Pulls stored messages from the SQLite history service and converts
+    them into the API response schema.
+    Parameters:
+        session_id: Session identifier to load.
+        history: SQLite history service injected via dependency.
+    Output:
+        List[MessageResponse]: Messages in chronological order.
     """
     msgs = await history.get_messages(session_id)
     return [
@@ -53,7 +66,13 @@ async def delete_session(
     session_id: str, history: SQLiteChatHistory = Depends(get_history_service)
 ):
     """
-    Delete a session and all its messages.
+    Purpose: Delete a session and all associated messages.
+    How: Issues a delete against the SQLite history store.
+    Parameters:
+        session_id: Session identifier to delete.
+        history: SQLite history service injected via dependency.
+    Output:
+        dict: Confirmation payload including deleted session id.
     """
     await history.delete_session(session_id)
     return {"ok": True, "deleted": session_id}

@@ -12,10 +12,14 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 def markdown_to_tts_text(md: str) -> str:
     """
-    Convert markdown into speech-friendly text.
-    - Remove markdown formatting for TTS only
-    - For fenced code blocks: replace with 'Check the code below.'
-    - Preserve normal text content
+    Purpose: Convert markdown into speech-friendly plain text.
+    How: Strips code blocks, links, images, formatting markers, and HTML,
+    while preserving readable text and replacing fenced code blocks with a
+    short spoken cue.
+    Parameters:
+        md: Markdown source string.
+    Output:
+        str: Cleaned text suitable for TTS synthesis.
     """
 
     if not md:

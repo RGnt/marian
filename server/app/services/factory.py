@@ -15,8 +15,13 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------------
 def initialize_langfuse(settings: Settings) -> Any | None:
     """
-    Attempts to initialize Langfuse. Returns the client or None.
-    Safe to call even if Langfuse is not installed or configured.
+    Purpose: Initialize Langfuse observability if configured.
+    How: Sets Langfuse env vars, instruments PydanticAI, creates the client,
+    and optionally performs an auth check.
+    Parameters:
+        settings: Application settings containing Langfuse configuration.
+    Output:
+        Any | None: Langfuse client instance or None if disabled/unavailable.
     """
     if not settings.is_langfuse_enabled:
         logger.info("Langfuse disabled.")
@@ -66,8 +71,13 @@ def initialize_langfuse(settings: Settings) -> Any | None:
 # -------------------------------------------------------------------------
 async def initialize_graphiti(settings: Settings) -> MemoryClient:
     """
-    Attempts to connect to Graphiti (Memgraph).
-    Returns a MemoryClient (GraphitiMemoryClient or NoOpMemoryClient).
+    Purpose: Initialize Graphiti (Memgraph) long-term memory.
+    How: Validates configuration, builds LLM/embedder clients, connects to
+    Graphiti, and returns a MemoryClient wrapper.
+    Parameters:
+        settings: Application settings containing Graphiti configuration.
+    Output:
+        MemoryClient: GraphitiMemoryClient on success, otherwise NoOpMemoryClient.
     """
     # Fast exit if disabled
     if not settings.enable_graphiti:

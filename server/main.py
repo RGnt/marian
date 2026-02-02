@@ -53,13 +53,10 @@ async def lifespan(app: FastAPI):
 
     if memory_client:
         try:
-            if hasattr(memory_client, "close"):
-                await memory_client.close()
-            elif hasattr(memory_client, "driver"):
-                await memory_client.driver.close()
-            logger.info("Graphiti connection closed.")
+            await memory_client.close()
+            logger.info("Memory connection closed.")
         except Exception as e:
-            logger.error(f"Error closing Graphiti connection: {e}")
+            logger.error(f"Error closing Memory connection: {e}")
 
     if app.state.langfuse:
         try:

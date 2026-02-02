@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
-import hashlib
 import logging
 from typing import Any, AsyncIterator, TypedDict, List
 
@@ -15,15 +13,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.config import get_stream_writer
 
 from app.services.history import SQLiteChatHistory
-
-try:
-    from graphiti_core import Graphiti
-    from graphiti_core.nodes import EpisodeType  # type: ignore
-
-    graphiti_available = True
-except ImportError:
-    graphiti_available = False
-
+from app.services.memory import MemoryClient
 from app.core.settings import Settings
 from app.schemas.openai_chat import ChatMessage
 
@@ -48,16 +38,8 @@ def _messages_to_transcript(messages: List[ChatMessage]) -> str:
     return "\n".join(parts).strip()
 
 
-def generate_turn_id(content_a: str, content_b: str) -> str:
-    """
-    Generate a deterministic ID based on content.
-    """
-    raw = (content_a[:50] + content_b[:50]).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()[:16]
-
-
 async def _save_memory_background(
-    client: Graphiti | None,
+    client: MemoryClient,
     history: SQLiteChatHistory,
     session_id: str,
     user_content: str,
@@ -75,33 +57,16 @@ async def _save_memory_background(
             await history.add_message(session_id, "assistant", assistant_content)
     except Exception as e:
         logger.error(f"Failed ot save SQLite history: {e}")
-    # 2. Save to Graphiti
-    if client and graphiti_available:
-        try:
-            # Deterministic ID prevents duplicates of restart
 
-            turn_id = generate_turn_id(user_content, assistant_content)
-            episode_name = f"turn_{turn_id}"
-
-            body = f"User: {user_content}\nAssistant: {assistant_content}"
-
-            await client.add_episode(
-                name=episode_name,
-                episode_body=body,
-                source=EpisodeType.message,  # type: ignore
-                source_description="User chat interaction",
-                reference_time=datetime.now(timezone.utc),
-            )
-            logger.debug(f"Saved episode {episode_name} to Graphiti memory.")
-        except Exception as e:
-            logger.warning(f"Failed to save memory episode: {e}")
+    # 2. Save to Memory
+    await client.add_turn(user_content, assistant_content)
 
 
 @dataclass
 class ChatRuntime:
     agent: Agent
     graph: Any
-    memory: Graphiti | None
+    memory: MemoryClient
     history: SQLiteChatHistory
 
     async def stream_deltas(
@@ -123,17 +88,15 @@ class ChatRuntime:
 
         # 3. Fetch Long-Term Memory (Graphiti)
         long_term_context = ""
-        if self.memory and user_query:
+        if user_query:
             try:
-                results = await self.memory.search(user_query)
-                if results:
-                    facts = [r.fact for r in results if getattr(r, "fact", None)]
-                    if facts:
-                        long_term_context = (
-                            "RELEVANT LONG-TERM MEMORY (Facts):\n- "
-                            + "\n- ".join(facts)
-                            + "\n\n"
-                        )
+                facts = await self.memory.search(user_query)
+                if facts:
+                    long_term_context = (
+                        "RELEVANT LONG-TERM MEMORY (Facts):\n- "
+                        + "\n- ".join(facts)
+                        + "\n\n"
+                    )
             except Exception as e:
                 logger.error(f"Error retrieving memory: {e}")
 
@@ -172,7 +135,7 @@ class ChatRuntime:
 
 async def build_chat_runtime(
     settings: Settings,
-    memory_client: Graphiti | None,
+    memory_client: MemoryClient,
     history_service: SQLiteChatHistory,
 ) -> ChatRuntime:
     provider = OpenAIProvider(

@@ -11,8 +11,14 @@ router = APIRouter()
 @router.post("/audio/speech")
 async def audio_speech(req: SpeechRequest, request: Request):
     """
-    OpenAI-compatible: POST /v1/audio/speech
-    Returns raw audio bytes. We currently support WAV only.
+    Purpose: Serve an OpenAI-compatible text-to-speech endpoint.
+    How: Uses the initialized TTS runtime to synthesize speech from markdown,
+    then returns raw WAV bytes.
+    Parameters:
+        req: Validated speech request payload (text, voice, speed, format).
+        request: FastAPI request for access to the app TTS runtime.
+    Output:
+        Response: WAV audio response with appropriate headers.
     """
     tts = request.app.state.tts
 

@@ -15,6 +15,14 @@ type TtsController = {
     fastStartTimer: number | null;
 };
 
+/**
+ * Purpose: Manage streaming TTS playback for assistant messages.
+ * How: Maintains a controller ref, schedules TTS segments, and exposes
+ * play/stop/stream controls tied to the audio queue.
+ * @param audioQ - Audio queue hook for playback.
+ * @param setMessages - State setter to append error messages to the UI.
+ * @returns Control functions plus current enabled/busy message ids.
+ */
 export function useTtsController(
     audioQ: ReturnType<typeof useAudioQueue>,
     setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
@@ -23,6 +31,13 @@ export function useTtsController(
     const [ttsEnabledFor, setTtsEnabledFor] = React.useState<string | null>(null);
     const [ttsBusyFor, setTtsBusyFor] = React.useState<string | null>(null);
 
+    /**
+     * Purpose: Stop any active TTS playback and reset state.
+     * How: Aborts the current request, clears timers, resets refs and UI flags,
+     * and stops the audio queue.
+     * Parameters: None.
+     * @returns void - Side effects only.
+     */
     const stop = React.useCallback(() => {
         const ctl = ttsRef.current;
         if (!ctl) return;
@@ -36,6 +51,14 @@ export function useTtsController(
         audioQ.stop();
     }, [audioQ]);
 
+    /**
+     * Purpose: Schedule synthesis and enqueue playback for a text segment.
+     * How: Chains a promise that calls the TTS API, enqueues audio on success,
+     * and appends error text to the UI on failure.
+     * @param ctl - Current TTS controller state.
+     * @param text - Segment text to synthesize.
+     * @returns void - Side effects only.
+     */
     const scheduleSegment = React.useCallback((ctl: TtsController, text: string) => {
         const localRunId = ctl.runId;
 
@@ -73,6 +96,14 @@ export function useTtsController(
             });
     }, [audioQ, setMessages]); // Added setMessages dependency
 
+    /**
+     * Purpose: Start TTS playback for a full assistant message.
+     * How: Resets prior playback, initializes a segmenter, schedules existing
+     * content, and kicks a fast-start timer for early output.
+     * @param messageId - Message id to associate with playback.
+     * @param content - Full message content to speak.
+     * @returns void - Side effects only.
+     */
     const playMessage = React.useCallback((messageId: string, content: string) => {
         stop();
 
@@ -102,6 +133,13 @@ export function useTtsController(
         }, 350);
     }, [stop, scheduleSegment]);
 
+    /**
+     * Purpose: Feed a streamed delta into the active TTS segmenter.
+     * How: Appends the delta, then schedules any new segments produced.
+     * @param messageId - Message id associated with the stream.
+     * @param delta - Incremental text from the model stream.
+     * @returns void - Side effects only.
+     */
     const feedStream = React.useCallback((messageId: string, delta: string) => {
         const ctl = ttsRef.current;
         if (ctl && ctl.enabled && ctl.messageId === messageId) {
@@ -110,6 +148,12 @@ export function useTtsController(
         }
     }, [scheduleSegment]);
 
+    /**
+     * Purpose: Flush any remaining TTS segments for the active message.
+     * How: Forces the segmenter to emit all buffered text and schedules it.
+     * @param messageId - Message id associated with the stream.
+     * @returns void - Side effects only.
+     */
     const flushStream = React.useCallback((messageId: string) => {
         const ctl = ttsRef.current;
         if (ctl && ctl.enabled && ctl.messageId === messageId) {

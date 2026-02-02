@@ -1,5 +1,11 @@
 import * as React from "react";
 
+/**
+ * Purpose: Provide the overall chat page layout with sidebar, navbar, and footer.
+ * How: Uses a drawer layout with a toggleable sidebar and fixed footer slot.
+ * @param props - Layout props for slots and drawer state.
+ * @returns JSX.Element - Rendered layout shell.
+ */
 export function ChatLayout(props: {
     sidebar: React.ReactNode;
     navbar: React.ReactNode;

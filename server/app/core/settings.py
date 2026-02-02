@@ -74,6 +74,14 @@ class Settings(BaseSettings):
 
     @property
     def is_langfuse_enabled(self) -> bool:
+        """
+        Purpose: Indicate whether Langfuse should be enabled.
+        How: Checks the enable flag and presence of required keys.
+        Parameters:
+            None.
+        Output:
+            bool: True if Langfuse is enabled and configured.
+        """
         if not self.enable_langfuse:
             return False
         return bool(self.langfuse_public_key and self.langfuse_secret_key)

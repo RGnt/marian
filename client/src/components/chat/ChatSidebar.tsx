@@ -1,6 +1,13 @@
 import * as React from "react";
 import type { ChatSession } from "@/lib/api/types";
 
+/**
+ * Purpose: Render the session list sidebar with create/select/delete actions.
+ * How: Maps sessions to list items, highlights active session, and exposes
+ * callbacks for selection and deletion.
+ * @param props - Sidebar data and handlers.
+ * @returns JSX.Element - Rendered sidebar.
+ */
 export function ChatSidebar(props: {
     sessions: ChatSession[];
     currentSessionId: string | null;

@@ -2,6 +2,13 @@ import type { ChatMessage } from "@/lib/api/types";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+/**
+ * Purpose: Render a list of chat messages with markdown and TTS controls.
+ * How: Maps messages to chat bubbles, renders markdown content, and shows
+ * play/stop controls for assistant messages when provided.
+ * @param props - Message list data and optional TTS handlers.
+ * @returns JSX.Element - Rendered message list.
+ */
 export function MessageList(props: {
   messages: ChatMessage[];
   onPlayAssistant?: (messageId: string) => void;

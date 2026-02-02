@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/**
+ * Purpose: Manage a simple audio playback queue for object URLs.
+ * How: Maintains an internal queue, plays sequentially via an Audio element,
+ * and exposes enqueue/stop controls plus state flags.
+ * Parameters: None.
+ * @returns Object with enqueue/stop functions and playback state.
+ */
 export function useAudioQueue() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -10,6 +17,12 @@ export function useAudioQueue() {
   const [playing, setPlaying] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
 
+  /**
+   * Purpose: Revoke an object URL if present.
+   * How: Calls `URL.revokeObjectURL` with basic error suppression.
+   * @param url - Object URL to revoke.
+   * @returns void - Side effects only.
+   */
   const revokeUrl = (url: string | null) => {
     if (!url) return;
     try {
@@ -17,6 +30,13 @@ export function useAudioQueue() {
     } catch {}
   };
 
+  /**
+   * Purpose: Start playback of the next queued audio URL.
+   * How: Dequeues a URL, configures the Audio element, and handles playback
+   * errors by advancing to the next item.
+   * Parameters: None.
+   * @returns void - Side effects only.
+   */
   const startNext = useCallback(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -53,6 +73,12 @@ export function useAudioQueue() {
     const a = new Audio();
     audioRef.current = a;
 
+    /**
+     * Purpose: Handle audio end/error events and advance the queue.
+     * How: Resets playback flags, revokes the current URL, and starts next.
+     * Parameters: None.
+     * @returns void - Side effects only.
+     */
     const onEndedOrError = () => {
       isPlayingRef.current = false;
       setPlaying(false);
@@ -87,6 +113,12 @@ export function useAudioQueue() {
     };
   }, [startNext]);
 
+  /**
+   * Purpose: Add an audio URL to the playback queue.
+   * How: Pushes the URL into the queue and starts playback if idle.
+   * @param objectUrl - Object URL to enqueue.
+   * @returns void - Side effects only.
+   */
   const enqueue = useCallback(
     (objectUrl: string) => {
       queueRef.current.push(objectUrl);
@@ -99,6 +131,13 @@ export function useAudioQueue() {
     [startNext]
   );
 
+  /**
+   * Purpose: Stop playback and clear the queue.
+   * How: Pauses the Audio element, clears sources, revokes URLs, and resets
+   * playback state.
+   * Parameters: None.
+   * @returns void - Side effects only.
+   */
   const stop = useCallback(() => {
     const a = audioRef.current;
 

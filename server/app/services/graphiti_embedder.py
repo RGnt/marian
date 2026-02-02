@@ -15,6 +15,10 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 
 class PydanticAIEmbedderConfig(EmbedderConfig):
+    """
+    Purpose: Configuration for a PydanticAI-backed Graphiti embedder.
+    How: Extends Graphiti EmbedderConfig with OpenAI-compatible settings.
+    """
     # EmbedderConfig already includes: embedding_dim (default from EMBEDDING_DIM env var). :contentReference[oaicite:2]{index=2}
     embedding_model: str = Field(default="text-embedding-3-small")
     base_url: str = Field(default="http://127.0.0.1:8081/v1")
@@ -26,6 +30,15 @@ class PydanticAIEmbedderConfig(EmbedderConfig):
 
 class PydanticAIEmbedder(EmbedderClient):
     def __init__(self, config: PydanticAIEmbedderConfig | None = None):
+        """
+        Purpose: Initialize a PydanticAI-backed embedder client.
+        How: Builds an OpenAI provider/model and wraps it with a PydanticAI
+        Embedder instance using optional embedding settings.
+        Parameters:
+            config: Optional embedder configuration overrides.
+        Output:
+            None: Initializes instance state.
+        """
         self.config = config or PydanticAIEmbedderConfig()
 
         provider = OpenAIProvider(
@@ -45,6 +58,15 @@ class PydanticAIEmbedder(EmbedderClient):
     def _normalize_inputs(
         self, input_data: str | list[str] | Iterable[int] | Iterable[Iterable[int]]
     ) -> list[str]:
+        """
+        Purpose: Normalize supported input types into a list of strings.
+        How: Coerces strings, lists, and iterables into string form while
+        filtering out empty values.
+        Parameters:
+            input_data: Raw input data in supported forms.
+        Output:
+            list[str]: Cleaned list of string inputs.
+        """
         if isinstance(input_data, str):
             return [input_data]
         if isinstance(input_data, list):
@@ -58,6 +80,15 @@ class PydanticAIEmbedder(EmbedderClient):
         return [s for s in out if s]
 
     def _assert_dim(self, vec: list[float]) -> list[float]:
+        """
+        Purpose: Validate embedding dimensionality.
+        How: Compares vector length to configured embedding_dim and raises on
+        mismatch to avoid index inconsistencies.
+        Parameters:
+            vec: Embedding vector to validate.
+        Output:
+            list[float]: Original vector if dimension matches.
+        """
         if not vec:
             return vec
         if len(vec) != self.config.embedding_dim:
@@ -72,6 +103,15 @@ class PydanticAIEmbedder(EmbedderClient):
         self,
         input_data: str | list[str] | Iterable[int] | Iterable[Iterable[int]],
     ) -> list[float]:
+        """
+        Purpose: Create a single embedding vector from supported input forms.
+        How: Normalizes input, chooses query or document embedding path, then
+        validates the resulting vector dimension.
+        Parameters:
+            input_data: String, list of strings, or iterable of items to embed.
+        Output:
+            list[float]: Embedding vector (empty if input is empty).
+        """
         input_list = self._normalize_inputs(input_data)
         if not input_list:
             return []
@@ -88,6 +128,15 @@ class PydanticAIEmbedder(EmbedderClient):
         return self._assert_dim(vec)
 
     async def create_batch(self, input_data_list: list[str]) -> list[list[float]]:
+        """
+        Purpose: Create embeddings for a batch of input strings.
+        How: Filters empty strings, embeds documents, and validates dimensions
+        for each vector.
+        Parameters:
+            input_data_list: List of strings to embed.
+        Output:
+            list[list[float]]: List of embedding vectors.
+        """
         input_list = [s for s in (x.strip() for x in input_data_list) if s]
         if not input_list:
             return []

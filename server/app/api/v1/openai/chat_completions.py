@@ -17,7 +17,13 @@ router = APIRouter()
 
 def _sse(obj: dict) -> str:
     """
-    Helper to format a dict as a Server-Sent Events data line.
+    Purpose: Format a JSON payload as a single Server-Sent Events (SSE) data frame.
+    How: JSON-encodes the dict, prefixes it with "data: ", and appends the SSE
+    frame terminator (double newline).
+    Parameters:
+        obj: Payload to serialize into the SSE data line.
+    Output:
+        str: SSE-formatted data frame string.
     """
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
@@ -32,8 +38,16 @@ async def chat_completions(
     chat: ChatRuntime = Depends(get_chat_runtime),
 ):
     """
-    OpenAI-compatible Chat Completions endpoint.
-    Support streaming and non-streaming responses.
+    Purpose: Serve an OpenAI-compatible Chat Completions endpoint.
+    How: For non-streaming requests, aggregates deltas into a single response.
+    For streaming requests, yields SSE chunks as deltas arrive.
+    Parameters:
+        req: Parsed OpenAI chat completion request payload.
+        request: FastAPI request for headers and disconnect checks.
+        session_id: Optional session ID for chat history context.
+        chat: Chat runtime dependency that streams model deltas.
+    Output:
+        dict | StreamingResponse: JSON response for non-streaming or SSE stream.
     """
     created = int(time.time())
     resp_id = f"chatcmpl_{int(time.time() * 1000)}"
@@ -74,6 +88,15 @@ async def chat_completions(
         }
 
     async def event_gen() -> AsyncIterator[str]:
+        """
+        Purpose: Yield SSE frames for a streaming chat completion response.
+        How: Emits a role preamble, streams delta chunks, then sends a final
+        stop chunk and a [DONE] sentinel.
+        Parameters:
+            None.
+        Output:
+            AsyncIterator[str]: SSE-formatted data frames.
+        """
         # First chunk with role
         yield _sse(
             {

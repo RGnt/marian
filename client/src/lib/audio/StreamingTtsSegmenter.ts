@@ -1,3 +1,8 @@
+/**
+ * Purpose: Segment streaming text into speakable chunks for TTS playback.
+ * How: Tracks code blocks, accumulates prose, and emits chunks based on
+ * punctuation and length thresholds.
+ */
 export class StreamingTtsSegmenter {
   private inCode = false;
   private rawBuf = "";
@@ -5,12 +10,26 @@ export class StreamingTtsSegmenter {
 
   private firstSegmentEmitted = false;
 
+  /**
+   * Purpose: Create a segmenter with length thresholds.
+   * How: Stores thresholds used to decide when to emit chunks.
+   * @param minChars - Minimum characters for subsequent segments.
+   * @param maxChars - Maximum characters per segment.
+   * @param firstMinChars - Minimum characters for the first segment.
+   */
   constructor(
     private minChars = 20,
     private maxChars = 240,
     private firstMinChars = 60
   ) {}
 
+  /**
+   * Purpose: Feed a new delta of text into the segmenter.
+   * How: Appends to the buffer, handles fenced code blocks, and emits any
+   * complete prose chunks that meet thresholds.
+   * @param delta - New text fragment.
+   * @returns string[] - Newly available speech chunks.
+   */
   feed(delta: string): string[] {
     if (!delta) return [];
     this.rawBuf += delta;
@@ -41,11 +60,24 @@ export class StreamingTtsSegmenter {
     return this.drain(false);
   }
 
+  /**
+   * Purpose: Flush all remaining buffered prose.
+   * How: Forces the internal drain to emit any buffered text.
+   * Parameters: None.
+   * @returns string[] - All remaining speech chunks.
+   */
   flushAll(): string[] {
     const out = this.drain(true);
     return out;
   }
 
+  /**
+   * Purpose: Emit an early partial chunk to reduce perceived latency.
+   * How: If enough prose has accumulated for the first segment, emits up to
+   * maxChars without requiring punctuation.
+   * Parameters: None.
+   * @returns string[] - Early speech chunk(s), if available.
+   */
   flushPartialForFastStart(): string[] {
     if (this.firstSegmentEmitted) return [];
     const trimmed = this.proseBuf.trim();
@@ -61,6 +93,13 @@ export class StreamingTtsSegmenter {
     return out;
   }
 
+  /**
+   * Purpose: Drain buffered prose into speech chunks.
+   * How: Finds punctuation boundaries or forces a cut when needed, enforcing
+   * minimum-length thresholds.
+   * @param force - Whether to emit even without meeting thresholds.
+   * @returns string[] - Emitted speech chunks.
+   */
   private drain(force: boolean): string[] {
     const out: string[] = [];
 

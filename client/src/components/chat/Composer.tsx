@@ -1,5 +1,11 @@
 import * as React from "react";
 
+/**
+ * Purpose: Render the chat input composer with text and voice controls.
+ * How: Shows speech state, captures input text, and triggers send/voice actions.
+ * @param props - Input state and handlers.
+ * @returns JSX.Element - Rendered composer UI.
+ */
 export function Composer(props: {
   text: string;
   setText: (v: string) => void;
@@ -14,6 +20,12 @@ export function Composer(props: {
   error: string | null;
   busy: boolean;
 }) {
+  /**
+   * Purpose: Send on Enter while allowing Shift+Enter for newlines.
+   * How: Intercepts keydown, prevents default newline, and calls onSendText.
+   * @param e - Keyboard event from the textarea.
+   * @returns void - Side effects only.
+   */
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

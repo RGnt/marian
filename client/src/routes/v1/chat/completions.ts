@@ -6,6 +6,13 @@ const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL ?? "http://127.0.0.1:8000"
 export const Route = createFileRoute("/v1/chat/completions")({
   server: {
     handlers: {
+      /**
+       * Purpose: Proxy chat completion requests to the FastAPI backend.
+       * How: Forwards headers/body, streams the upstream response, and sets
+       * SSE-friendly cache headers when needed.
+       * @param request - Incoming TanStack request.
+       * @returns Response - Proxied upstream response.
+       */
       POST: async ({ request }) => {
         const targetUrl = `${FASTAPI_BASE_URL}/v1/chat/completions`;
 

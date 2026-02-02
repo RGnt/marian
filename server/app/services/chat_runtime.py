@@ -28,6 +28,15 @@ class ChatState(TypedDict):
 
 
 def _messages_to_transcript(messages: List[ChatMessage]) -> str:
+    """
+    Purpose: Convert a list of chat messages into a role-prefixed transcript.
+    How: Iterates messages, uppercases roles, trims content, and joins entries
+    with blank lines while skipping empty content.
+    Parameters:
+        messages: Ordered chat messages to serialize.
+    Output:
+        str: Transcript string suitable for prompt assembly.
+    """
     parts: list[str] = []
     for m in messages:
         role = m.role.upper()
@@ -46,8 +55,17 @@ async def _save_memory_background(
     assistant_content: str,
 ):
     """
-    1. Save immediate chat history to SQLite
-    2. Save episode to Graphiti if available.
+    Purpose: Persist a conversation turn to short- and long-term memory stores.
+    How: Writes the user/assistant messages to SQLite first, then adds a turn
+    to the memory client (Graphiti or no-op).
+    Parameters:
+        client: Memory client used for long-term storage.
+        history: SQLite history service for short-term storage.
+        session_id: Session identifier for history grouping.
+        user_content: User message content.
+        assistant_content: Assistant response content.
+    Output:
+        None: Performs side effects only.
     """
 
     try:
@@ -75,6 +93,17 @@ class ChatRuntime:
         session_id: str,
         disconnect_check: Any = None,
     ) -> AsyncIterator[str]:
+        """
+        Purpose: Stream model output as incremental text deltas.
+        How: Builds a prompt with short- and long-term context, then runs the
+        LangGraph workflow and yields token deltas as they arrive.
+        Parameters:
+            messages: Full in-memory message list for the current request.
+            session_id: Session identifier for history and memory lookup.
+            disconnect_check: Optional request object for disconnect detection.
+        Output:
+            AsyncIterator[str]: Stream of text deltas.
+        """
         # 1. Extract latest user query
         user_query = ""
         for m in reversed(messages):
@@ -138,6 +167,17 @@ async def build_chat_runtime(
     memory_client: MemoryClient,
     history_service: SQLiteChatHistory,
 ) -> ChatRuntime:
+    """
+    Purpose: Construct a fully configured ChatRuntime instance.
+    How: Builds the OpenAI provider/model, sets up a PydanticAI agent,
+    defines a LangGraph workflow, and wires memory/history services.
+    Parameters:
+        settings: Application settings for model and system prompt.
+        memory_client: Long-term memory client (Graphiti or no-op).
+        history_service: SQLite history service for short-term context.
+    Output:
+        ChatRuntime: Ready-to-use runtime with streaming support.
+    """
     provider = OpenAIProvider(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
@@ -158,6 +198,15 @@ async def build_chat_runtime(
     )
 
     async def respond_node(state: ChatState) -> ChatState:
+        """
+        Purpose: Execute the agent for a single LangGraph node and stream tokens.
+        How: Runs the agent in streaming mode, forwards deltas to the graph writer,
+        and schedules background memory persistence.
+        Parameters:
+            state: Current chat state dictionary with prompt and session info.
+        Output:
+            ChatState: Updated state containing the accumulated response.
+        """
         # Note: 'state' is typed dict, but LangGraph passes it as dict at runtime
         writer = get_stream_writer()
 

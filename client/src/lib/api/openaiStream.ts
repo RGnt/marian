@@ -1,3 +1,14 @@
+/**
+ * Purpose: Stream chat completion deltas from the backend SSE endpoint.
+ * How: Performs a streaming fetch to `/v1/chat/completions`, parses SSE frames,
+ * and yields `delta.content` strings as they arrive.
+ * @param args - Request parameters for the stream.
+ * @param args.model - Model name to pass to the backend.
+ * @param args.messages - Chat history to send (OpenAI message format).
+ * @param args.sessionId - Session identifier for server-side history.
+ * @param args.signal - Optional AbortSignal to cancel the request.
+ * @returns AsyncGenerator<string> - Yields text deltas in order.
+ */
 export async function* streamChatCompletion(args: {
     model: string;
     messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string }>;
